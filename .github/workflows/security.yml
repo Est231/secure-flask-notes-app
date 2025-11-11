@@ -28,56 +28,56 @@ jobs:
       run: |
         bandit -r . -f json -o bandit-report.json || true
 
-    - name: 🚫 Check for Critical Issues
+            - name: 🚫 Check for Critical Issues
       id: bandit_check
       run: |
         if [ -f bandit-report.json ]; then
-          python -c "
-          import json
-          try:
-              with open('bandit-report.json', 'r') as f:
-                  data = json.load(f)
-              critical = len([i for i in data['results'] if i['issue_severity'] == 'HIGH'])
-              print(f'Critical issues found: {critical}')
-              if critical > 0:
-                  print('::error::Critical security issues detected! Merge blocked.')
-                  exit(1)
-          except Exception as e:
-              print(f'Error: {e}')
-              exit(0)
-          "
+          python << EOF
+import json
+try:
+    with open('bandit-report.json', 'r') as f:
+        data = json.load(f)
+    critical = len([i for i in data['results'] if i['issue_severity'] == 'HIGH'])
+    print(f'Critical issues found: {critical}')
+    if critical > 0:
+        print('::error::Critical security issues detected! Merge blocked.')
+        exit(1)
+except Exception as e:
+    print(f'Error: {e}')
+    exit(0)
+EOF
         else
           echo 'No bandit report generated'
           exit(0)
         fi
 
-    - name: 📊 Security Report
+        - name: 📊 Security Report
       if: always()
       run: |
         echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
         if [ -f bandit-report.json ]; then
           python -c "
-          import json
-          try:
-              with open('bandit-report.json', 'r') as f:
-                  data = json.load(f)
-              
-              high = len([i for i in data['results'] if i['issue_severity'] == 'HIGH'])
-              medium = len([i for i in data['results'] if i['issue_severity'] == 'MEDIUM'])
-              low = len([i for i in data['results'] if i['issue_severity'] == 'LOW'])
-              
-              print(f'- 🔴 High: {high}')
-              print(f'- 🟡 Medium: {medium}')
-              print(f'- 🟢 Low: {low}')
-              
-              if high > 0:
-                  print('\\n**❌ CRITICAL ISSUES FOUND - MERGE BLOCKED**')
-              else:
-                  print('\\n**✅ No critical issues found**')
-                  
-          except Exception as e:
-              print(f'Error generating report: {e}')
-          "
-        else:
+import json
+try:
+    with open('bandit-report.json', 'r') as f:
+        data = json.load(f)
+    
+    high = len([i for i in data['results'] if i['issue_severity'] == 'HIGH'])
+    medium = len([i for i in data['results'] if i['issue_severity'] == 'MEDIUM'])
+    low = len([i for i in data['results'] if i['issue_severity'] == 'LOW'])
+    
+    print(f'- 🔴 High: {high}')
+    print(f'- 🟡 Medium: {medium}')
+    print(f'- 🟢 Low: {low}')
+    
+    if high > 0:
+        print('\\n**❌ CRITICAL ISSUES FOUND - MERGE BLOCKED**')
+    else:
+        print('\\n**✅ No critical issues found**')
+        
+except Exception as e:
+    print(f'Error generating report: {e}')
+"
+        else
           echo 'No security report available'
         fi
