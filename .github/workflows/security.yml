@@ -28,11 +28,11 @@ jobs:
       run: |
         bandit -r . -f json -o bandit-report.json || true
 
-            - name: 🚫 Check for Critical Issues
+    - name: 🚫 Check for Critical Issues
       id: bandit_check
       run: |
         if [ -f bandit-report.json ]; then
-          python << EOF
+          python -c "
 import json
 try:
     with open('bandit-report.json', 'r') as f:
@@ -42,16 +42,19 @@ try:
     if critical > 0:
         print('::error::Critical security issues detected! Merge blocked.')
         exit(1)
+    else:
+        print('No critical issues found')
+        exit(0)
 except Exception as e:
-    print(f'Error: {e}')
+    print(f'Error reading bandit report: {e}')
     exit(0)
-EOF
+"
         else
           echo 'No bandit report generated'
           exit(0)
         fi
 
-        - name: 📊 Security Report
+    - name: 📊 Security Report
       if: always()
       run: |
         echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
@@ -67,7 +70,7 @@ try:
     low = len([i for i in data['results'] if i['issue_severity'] == 'LOW'])
     
     print(f'- 🔴 High: {high}')
-    print(f'- 🟡 Medium: {medium}')
+    print(f'- 🟡 Medium: {medium}') 
     print(f'- 🟢 Low: {low}')
     
     if high > 0:
