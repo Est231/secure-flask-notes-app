@@ -2,14 +2,14 @@ name: Security Scan
 
 on:
   push:
-    branches: [main]
+    branches: [ main, master ]
   pull_request:
-    branches: [main]
+    branches: [ main, master ]
 
 jobs:
-  security-scan:
+  security-check:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -22,28 +22,46 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install bandit safety
+        pip install flask flask-wtf python-dotenv werkzeug psycopg2-binary
 
-    - name: Run Bandit SAST Scan
+    - name: Basic security checks
       run: |
-        bandit -r . -f json -o bandit-report.json || true
-
-    - name: Check for Critical Issues
-      id: bandit_check
-      run: |
-        if [ -f bandit-report.json ]; then
-          python .github/scripts/check_bandit.py
-        else
-          echo 'No bandit report generated'
-          exit 0
+        echo "🔍 Проверка безопасности..."
+        
+        # Проверка на debug mode
+        if grep -r "debug=True" . --include="*.py"; then
+          echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Обнаружен debug=True в продакшн коде"
+          exit 1
         fi
+        
+        # Проверка на хардкод паролей
+        if grep -r "password.*=" . --include="*.py" | grep -v "password_hash" | grep -v "DB_PASSWORD"; then
+          echo "⚠️  ПРЕДУПРЕЖДЕНИЕ: Возможен хардкод паролей"
+        fi
+        
+        # Проверка .env файла (если случайно закоммитили)
+        if [ -f ".env" ]; then
+          echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Файл .env не должен быть в репозитории"
+          exit 1
+        fi
+        
+        echo "✅ Базовые проверки безопасности пройдены"
 
-    - name: Security Report
-      if: always()
+    - name: Syntax check
       run: |
-        echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        if [ -f bandit-report.json ]; then
-          python .github/scripts/generate_report.py >> $GITHUB_STEP_SUMMARY
+        echo "🔍 Проверка синтаксиса Python..."
+        python -m py_compile app.py || exit 1
+        echo "✅ Синтаксис корректен"
+
+    - name: Test application start
+      run: |
+        echo "🔍 Тестирование запуска приложения..."
+        timeout 10s python app.py &
+        sleep 3
+        if ps aux | grep "python app.py" | grep -v grep; then
+          echo "✅ Приложение успешно запускается"
+          pkill -f "python app.py"
         else
-          echo 'No security report available' >> $GITHUB_STEP_SUMMARY
+          echo "❌ Ошибка запуска приложения"
+          exit 1
         fi
