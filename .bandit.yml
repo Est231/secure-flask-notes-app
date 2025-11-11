@@ -1,9 +1,6 @@
 exclude_dirs: ['tests', 'venv', '.github', 'static', 'templates', '__pycache__']
 
-skips:
-    - B101
-    - B105
-    - B602
+skips: []
 
 
 tests:
