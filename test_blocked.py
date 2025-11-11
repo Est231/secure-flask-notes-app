@@ -1,0 +1,8 @@
+"import subprocess" 
+"import pickle" 
+"def dangerous_function():" 
+"    # Эти уязвимости вызовут ошибку:" 
+"    subprocess.call('ls -la', shell=True)  # B602 - critical!" 
+"    data = pickle.loads(b'test')  # B301 - medium" 
+"    password = 'MySecret123!'  # B105 - low" 
+"    return password" 
