@@ -1,6 +1,5 @@
 import json
 import sys
-import os
 
 def main():
     try:
@@ -19,7 +18,7 @@ def main():
             
     except Exception as e:
         print(f'Error reading bandit report: {e}')
-        sys.exit(0)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

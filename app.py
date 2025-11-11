@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-123')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Без значения по умолчанию
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -25,7 +25,7 @@ csrf = CSRFProtect(app)
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'notes_app_user',
-    'password': os.getenv('DB_PASSWORD', 'default_dev_password'),
+    'password': os.getenv('DB_PASSWORD'),  # Без значения по умолчанию
     'database': 'notes_app_db',
     'port': 3306
 }
@@ -76,7 +76,7 @@ def init_database():
         # Создаем тестового пользователя
         cursor.execute("SELECT * FROM user WHERE username = 'testuser'")
         if not cursor.fetchone():
-            test_password = os.getenv('TEST_USER_PASSWORD', 'testpassword123')
+            test_password = os.getenv('TEST_USER_PASSWORD')
             password_hash = generate_password_hash(test_password)
             cursor.execute(
                 "INSERT INTO user (username, password_hash) VALUES (%s, %s)",
