@@ -25,7 +25,8 @@ csrf = CSRFProtect(app)
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'notes_app_user',
-    'password': 'StrongAppPassword123!',
+    test_password = os.getenv('TEST_USER_PASSWORD', 'testpassword123')
+    password_hash = generate_password_hash(test_password)
     'database': 'notes_app_db',
     'port': 3306
 }
@@ -76,7 +77,8 @@ def init_database():
         # Создаем тестового пользователя
         cursor.execute("SELECT * FROM user WHERE username = 'testuser'")
         if not cursor.fetchone():
-            password_hash = generate_password_hash('testpassword123')
+            test_password = os.getenv('TEST_USER_PASSWORD', 'testpassword123')
+            password_hash = generate_password_hash(test_password)
             cursor.execute(
                 "INSERT INTO user (username, password_hash) VALUES (%s, %s)",
                 ('testuser', password_hash)
@@ -96,7 +98,7 @@ def init_database():
             )
 
             conn.commit()
-            print("✅ Тестовый пользователь создан: testuser / testpassword123")
+            print("✅ Тестовый пользователь создан: testuser / [HIDDEN]")
 
         cursor.close()
         conn.close()
@@ -472,7 +474,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("🛡️  ЗАПУСК ЗАЩИЩЕННОГО ПРИЛОЖЕНИЯ С MYSQL")
     print("=" * 60)
-    print("📊 Тестовый пользователь: testuser / testpassword123")
+    print("📊 Тестовый пользователь: testuser / [HIDDEN]")
     print("🔒 Используются параметризованные запросы")
     print("🗄️  База данных: MySQL")
     print("🚫 SQL-инъекции заблокированы")
