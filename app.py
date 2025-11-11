@@ -6,11 +6,46 @@ from datetime import datetime, timedelta, timezone
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
+from logging.handlers import RotatingFileHandler
+
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+def setup_logging():
+    """Настройка системы логирования для Flask приложения с поддержкой Unicode"""
+    # Создаем папку для логов если её нет
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
 
+    # Настройка формата логов
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - [%(ip)s] - %(message)s'
+    )
+
+    # Хендлер для файла (поддерживает Unicode)
+    file_handler = RotatingFileHandler(
+        'logs/flask_app.log',
+        maxBytes=10240,  # 10KB
+        backupCount=10,
+        encoding='utf-8'  # Добавляем кодировку UTF-8
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    # Хендлер для консоли
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    # Получаем логгер приложения
+    app_logger = logging.getLogger('flask_app')
+    app_logger.setLevel(logging.INFO)
+    app_logger.addHandler(file_handler)
+    app_logger.addHandler(console_handler)
+
+    return app_logger
+
+
+# Загрузка переменных окружения
 load_dotenv()
 
 app = Flask(__name__)
@@ -25,6 +60,19 @@ app.config.update(
 )
 
 csrf = CSRFProtect(app)
+
+# Инициализация логгера
+app_logger = setup_logging()
+
+
+# Фильтр для добавления IP адреса в логи
+class IPFilter(logging.Filter):
+    def filter(self, record):
+        record.ip = request.remote_addr if request else 'N/A'
+        return True
+
+
+app_logger.addFilter(IPFilter())
 
 # Конфигурация подключения к PostgreSQL
 DB_CONFIG = {
@@ -42,7 +90,7 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except psycopg2.Error as e:
-        logger.error(f"Ошибка подключения к PostgreSQL: {e}")
+        app_logger.error(f"Ошибка подключения к PostgreSQL: {e}")
         return None
 
 
@@ -51,7 +99,7 @@ def init_database():
     try:
         conn = get_db_connection()
         if conn is None:
-            logger.error("❌ Не удалось подключиться к БД")
+            app_logger.error("Не удалось подключиться к БД")
             return False
 
         cursor = conn.cursor()
@@ -105,19 +153,19 @@ def init_database():
                 )
 
             conn.commit()
-            print("✅ Тестовый пользователь создан: testuser / testpassword123")
+            app_logger.info("Тестовый пользователь создан: testuser / testpassword123")
 
         cursor.close()
         conn.close()
-        print("✅ База данных PostgreSQL инициализирована")
+        app_logger.info("База данных PostgreSQL инициализирована")
         return True
 
     except psycopg2.Error as e:
-        print(f"❌ Ошибка инициализации БД: {e}")
+        app_logger.error(f"Ошибка инициализации БД: {e}")
         return False
 
 
-# Остальные функции для PostgreSQL
+# Функции для работы с пользователями и заметками
 def user_exists(username):
     """Проверка существования пользователя"""
     conn = get_db_connection()
@@ -130,7 +178,7 @@ def user_exists(username):
         user = cursor.fetchone()
         return user is not None
     except Exception as e:
-        print(f"Ошибка проверки пользователя: {e}")
+        app_logger.error(f"Ошибка проверки пользователя {username}: {e}")
         return False
     finally:
         cursor.close()
@@ -152,12 +200,14 @@ def register_user(username, password):
             (username, password_hash)
         )
         conn.commit()
+        app_logger.info(f"Успешная регистрация пользователя: {username}")
         return True
     except psycopg2.IntegrityError:
+        app_logger.warning(f"Попытка регистрации существующего пользователя: {username}")
         flash('Пользователь с таким именем уже существует', 'error')
         return False
     except Exception as e:
-        print(f"Ошибка регистрации: {e}")
+        app_logger.error(f"Ошибка регистрации пользователя {username}: {e}")
         return False
     finally:
         cursor.close()
@@ -165,9 +215,10 @@ def register_user(username, password):
 
 
 def login_user(username, password):
-    """Вход пользователя"""
+    """Вход пользователя с логированием"""
     conn = get_db_connection()
     if conn is None:
+        app_logger.error("Database connection failed during login attempt")
         return None
 
     cursor = conn.cursor()
@@ -176,10 +227,13 @@ def login_user(username, password):
         user = cursor.fetchone()
 
         if user and check_password_hash(user[2], password):
+            app_logger.info(f"Successful login for user: {username}")
             return user
-        return None
+        else:
+            app_logger.warning(f"Failed login attempt for user: {username}")
+            return None
     except Exception as e:
-        print(f"Ошибка входа: {e}")
+        app_logger.error(f"Login error for user {username}: {e}")
         return None
     finally:
         cursor.close()
@@ -203,7 +257,7 @@ def get_all_notes():
         notes = cursor.fetchall()
         return notes
     except Exception as e:
-        print(f"Ошибка получения заметок: {e}")
+        app_logger.error(f"Ошибка получения всех заметок: {e}")
         return []
     finally:
         cursor.close()
@@ -222,7 +276,7 @@ def get_user_notes(user_id):
         notes = cursor.fetchall()
         return notes
     except Exception as e:
-        print(f"Ошибка получения заметок пользователя: {e}")
+        app_logger.error(f"Ошибка получения заметок пользователя {user_id}: {e}")
         return []
     finally:
         cursor.close()
@@ -243,9 +297,10 @@ def add_note_to_db(title, content, user_id):
         )
         note_id = cursor.fetchone()[0]
         conn.commit()
+        app_logger.info(f"Заметка добавлена пользователем {user_id}: {title}")
         return note_id
     except Exception as e:
-        print(f"Ошибка добавления заметки: {e}")
+        app_logger.error(f"Ошибка добавления заметки пользователем {user_id}: {e}")
         return None
     finally:
         cursor.close()
@@ -266,9 +321,13 @@ def update_note_in_db(note_id, title, content, user_id):
         )
         conn.commit()
         success = cursor.rowcount > 0
+        if success:
+            app_logger.info(f"Заметка {note_id} обновлена пользователем {user_id}")
+        else:
+            app_logger.warning(f"Попытка обновления чужой заметки {note_id} пользователем {user_id}")
         return success
     except Exception as e:
-        print(f"Ошибка обновления заметки: {e}")
+        app_logger.error(f"Ошибка обновления заметки {note_id}: {e}")
         return False
     finally:
         cursor.close()
@@ -289,9 +348,13 @@ def delete_note_from_db(note_id, user_id):
         )
         conn.commit()
         success = cursor.rowcount > 0
+        if success:
+            app_logger.info(f"Заметка {note_id} удалена пользователем {user_id}")
+        else:
+            app_logger.warning(f"Попытка удаления чужой заметки {note_id} пользователем {user_id}")
         return success
     except Exception as e:
-        print(f"Ошибка удаления заметки: {e}")
+        app_logger.error(f"Ошибка удаления заметки {note_id}: {e}")
         return False
     finally:
         cursor.close()
@@ -313,22 +376,45 @@ def get_note_by_id(note_id, user_id):
         note = cursor.fetchone()
         return note
     except Exception as e:
-        print(f"Ошибка получения заметки: {e}")
+        app_logger.error(f"Ошибка получения заметки {note_id}: {e}")
         return None
     finally:
         cursor.close()
         conn.close()
 
 
+# Middleware для логирования запросов
+@app.before_request
+def log_request_info():
+    """Логируем информацию о каждом запросе"""
+    if request.endpoint and request.endpoint != 'static':
+        app_logger.info(
+            f"Method: {request.method} - "
+            f"Endpoint: {request.endpoint} - "
+            f"User-Agent: {request.user_agent} - "
+            f"Args: {dict(request.args)}"
+        )
+
+
+@app.after_request
+def log_response_info(response):
+    """Логируем информацию о ответе"""
+    if request.endpoint and request.endpoint != 'static':
+        app_logger.info(
+            f"Response - Status: {response.status_code} - "
+            f"Endpoint: {request.endpoint}"
+        )
+    return response
+
+
 # Инициализируем базу данных
-print("🔄 Инициализация базы данных PostgreSQL...")
+app_logger.info("Инициализация базы данных PostgreSQL...")
 if init_database():
-    print("✅ База данных готова к работе")
+    app_logger.info("База данных готова к работе")
 else:
-    print("❌ Ошибка инициализации базы данных")
+    app_logger.error("Ошибка инициализации базы данных")
 
-
-# Маршруты Flask (остаются без изменений)
+# Маршруты Flask
 @app.before_request
 def before_request():
     if 'user_id' not in session:
@@ -373,6 +459,7 @@ def login_route():
         password = request.form['password'].strip()
 
         if not username or not password:
+            app_logger.warning("Empty credentials in login attempt")
             flash('Заполните все поля', 'error')
             return render_template('login.html')
 
@@ -381,9 +468,11 @@ def login_route():
         if user_data:
             session['user_id'] = user_data[0]
             session['username'] = user_data[1]
+            app_logger.info(f"User {username} successfully authenticated")
             flash('Успешный вход в систему!', 'success')
             return redirect(url_for('index'))
         else:
+            app_logger.warning(f"Failed authentication for user: {username}")
             flash('Неверные учетные данные', 'error')
 
     return render_template('login.html')
@@ -397,22 +486,27 @@ def register():
         confirm_password = request.form['confirm_password']
 
         if not username or not password:
+            app_logger.warning("Empty registration data")
             flash('Заполните все поля', 'error')
             return render_template('register.html')
 
         if password != confirm_password:
+            app_logger.warning(f"Password mismatch for user: {username}")
             flash('Пароли не совпадают', 'error')
             return render_template('register.html')
 
         if len(username) < 3:
+            app_logger.warning(f"Too short username: {username}")
             flash('Имя пользователя должно быть не менее 3 символов', 'error')
             return render_template('register.html')
 
         if len(password) < 6:
+            app_logger.warning(f"Too short password for user: {username}")
             flash('Пароль должен быть не менее 6 символов', 'error')
             return render_template('register.html')
 
         if user_exists(username):
+            app_logger.warning(f"User already exists: {username}")
             flash('Пользователь с таким именем уже существует', 'error')
             return render_template('register.html')
 
@@ -422,6 +516,7 @@ def register():
             flash('Регистрация успешна! Теперь войдите в систему.', 'success')
             return redirect(url_for('login_route'))
         else:
+            app_logger.error(f"Registration failed for user: {username}")
             flash('Ошибка регистрации', 'error')
 
     return render_template('register.html')
@@ -429,6 +524,8 @@ def register():
 
 @app.route('/logout')
 def logout():
+    username = session.get('username')
+    app_logger.info(f"User {username} logged out")
     session.clear()
     flash('Вы вышли из системы', 'success')
     return redirect(url_for('login_route'))
@@ -437,12 +534,14 @@ def logout():
 @app.route('/add', methods=['POST'])
 def add_note():
     if not session.get('user_id'):
+        app_logger.warning("Unauthorized add note attempt")
         return redirect(url_for('login_route'))
 
     title = request.form['title'].strip()
     content = request.form['content'].strip()
 
     if not title or not content:
+        app_logger.warning("Empty note data")
         flash('Заполните все поля', 'error')
         return redirect(url_for('index'))
 
@@ -459,10 +558,12 @@ def add_note():
 @app.route('/edit/<int:note_id>', methods=['GET', 'POST'])
 def edit_note(note_id):
     if not session.get('user_id'):
+        app_logger.warning(f"Unauthorized edit attempt for note {note_id}")
         return redirect(url_for('login_route'))
 
     note = get_note_by_id(note_id, session['user_id'])
     if not note:
+        app_logger.warning(f"Unauthorized access to note {note_id} by user {session['user_id']}")
         return "Доступ запрещен!", 403
 
     if request.method == 'POST':
@@ -474,6 +575,7 @@ def edit_note(note_id):
             flash('Заметка обновлена!', 'success')
             return redirect(url_for('index'))
         else:
+            app_logger.error(f"Failed to update note {note_id}")
             flash('Ошибка обновления заметки', 'error')
 
     note_formatted = {
@@ -490,10 +592,12 @@ def edit_note(note_id):
 @app.route('/delete/<int:note_id>')
 def delete_note(note_id):
     if not session.get('user_id'):
+        app_logger.warning(f"Unauthorized delete attempt for note {note_id}")
         return redirect(url_for('login_route'))
 
     success = delete_note_from_db(note_id, session['user_id'])
     if not success:
+        app_logger.warning(f"Failed delete attempt for note {note_id} by user {session['user_id']}")
         return "Доступ запрещен!", 403
 
     if note_id in session.get('note_ids', []):
@@ -504,13 +608,52 @@ def delete_note(note_id):
     return redirect(url_for('index'))
 
 
+# Специальные маршруты для тестирования SIEM (можно удалить в продакшене)
+@app.route('/admin')
+def admin_panel():
+    """Тестовый защищенный эндпоинт"""
+    app_logger.warning(f"Access attempt to admin panel from {request.remote_addr}")
+    return "Доступ запрещен!", 403
+
+
+@app.route('/api/delete/<int:note_id>')
+def api_delete(note_id):
+    """Тестовый API эндпоинт"""
+    app_logger.warning(f"API delete attempt for note {note_id} from {request.remote_addr}")
+    return "Доступ запрещен!", 403
+
+
+@app.route('/.env')
+def env_file():
+    """Тестовый эндпоинт для обнаружения сканирования"""
+    app_logger.warning(f"Access attempt to .env from {request.remote_addr}")
+    return "Доступ запрещен!", 403
+
+
+@app.route('/config')
+def config():
+    """Тестовый эндпоинт для обнаружения сканирования"""
+    app_logger.warning(f"Access attempt to config from {request.remote_addr}")
+    return "Доступ запрещен!", 403
+
+
+@app.route('/backup')
+def backup():
+    """Тестовый эндпоинт для обнаружения сканирования"""
+    app_logger.warning(f"Access attempt to backup from {request.remote_addr}")
+    return "Доступ запрещен!", 403
+
+
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🛡️  ЗАПУСК ЗАЩИЩЕННОГО ПРИЛОЖЕНИЯ С POSTGRESQL")
-    print("=" * 60)
-    print("📊 Тестовый пользователь: testuser / testpassword123")
-    print("🔒 Используются параметризованные запросы")
-    print("🗄️  База данных: PostgreSQL")
-    print("🚫 SQL-инъекции заблокированы")
-    print("=" * 60)
+    app_logger.info("=" * 60)
+    app_logger.info("ЗАПУСК ЗАЩИЩЕННОГО ПРИЛОЖЕНИЯ С POSTGRESQL И SIEM")
+    app_logger.info("=" * 60)
+    app_logger.info("Тестовый пользователь: testuser / testpassword123")
+    app_logger.info("Используются параметризованные запросы")
+    app_logger.info("База данных: PostgreSQL")
+    app_logger.info("Логирование: logs/flask_app.log")
+    app_logger.info("SQL-инъекции заблокированы")
+    app_logger.info("=" * 60)
+
+    # Запуск в продакшн режиме (debug=False)
     app.run(debug=False, host='127.0.0.1', port=5001)

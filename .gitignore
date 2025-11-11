@@ -12,6 +12,7 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
 # IDE
 .vscode/
@@ -22,3 +23,24 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# ========== SIEM System Logs ==========
+logs/
+*.log
+security_alerts.log
+daily_security_report_*.txt
+
+# ========== Test and Temporary Files ==========
+test_*.py
+simple_test.py
+guaranteed_block.py
+final_test.py
+demo_vulnerability.py
+
+# ========== PostgreSQL Logs ==========
+postgresql_logging.sql
+postgresql_portable/
+
+# ========== Python Cache ==========
+.pytest_cache/
+.mypy_cache/
