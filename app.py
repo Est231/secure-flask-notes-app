@@ -3,17 +3,22 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
-import mysql.connector
+import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Без значения по умолчанию
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'fallback-secret-key-for-dev')
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SECURE=False,  # Для локальной разработки
+    SESSION_COOKIE_SECURE=False,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_NAME='secure_session',
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
@@ -21,68 +26,70 @@ app.config.update(
 
 csrf = CSRFProtect(app)
 
-# Конфигурация подключения к MySQL
+# Конфигурация подключения к PostgreSQL
 DB_CONFIG = {
     'host': 'localhost',
-    'user': 'notes_app_user',
-    'password': os.getenv('DB_PASSWORD'),  # Без значения по умолчанию
+    'user': 'app_user',
+    'password': os.getenv('DB_PASSWORD', 'secure_password_123'),
     'database': 'notes_app_db',
-    'port': 3306
+    'port': 5432
 }
 
+
 def get_db_connection():
-    """Создание защищенного подключения к MySQL"""
+    """Создание защищенного подключения к PostgreSQL"""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**DB_CONFIG)
         return conn
-    except mysql.connector.Error as e:
-        print(f"Ошибка подключения к БД: {e}")
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка подключения к PostgreSQL: {e}")
         return None
 
+
 def init_database():
-    """Инициализация базы данных MySQL"""
+    """Инициализация базы данных PostgreSQL"""
     try:
         conn = get_db_connection()
         if conn is None:
-            print("❌ Не удалось подключиться к БД")
+            logger.error("❌ Не удалось подключиться к БД")
             return False
 
         cursor = conn.cursor()
 
         # Создаем таблицу пользователей
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB
+            )
         ''')
 
         # Создаем таблицу заметок
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS note (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS notes (
+                id SERIAL PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 content TEXT NOT NULL,
-                user_id INT NOT NULL,
+                user_id INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
-            ) ENGINE=InnoDB
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
         ''')
 
         conn.commit()
 
         # Создаем тестового пользователя
-        cursor.execute("SELECT * FROM user WHERE username = 'testuser'")
+        cursor.execute("SELECT * FROM users WHERE username = 'testuser'")
         if not cursor.fetchone():
-            test_password = os.getenv('TEST_USER_PASSWORD')
+            test_password = os.getenv('TEST_USER_PASSWORD', 'testpassword123')
             password_hash = generate_password_hash(test_password)
             cursor.execute(
-                "INSERT INTO user (username, password_hash) VALUES (%s, %s)",
+                "INSERT INTO users (username, password_hash) VALUES (%s, %s) RETURNING id",
                 ('testuser', password_hash)
             )
-            user_id = cursor.lastrowid
+            user_id = cursor.fetchone()[0]
 
             # Создаем тестовые заметки
             notes_data = [
@@ -91,100 +98,93 @@ def init_database():
                 ('Идеи для проекта', 'Разработать веб-приложение', user_id)
             ]
 
-            cursor.executemany(
-                "INSERT INTO note (title, content, user_id) VALUES (%s, %s, %s)",
-                notes_data
-            )
+            for note in notes_data:
+                cursor.execute(
+                    "INSERT INTO notes (title, content, user_id) VALUES (%s, %s, %s)",
+                    note
+                )
 
             conn.commit()
-            print("✅ Тестовый пользователь создан: testuser / [HIDDEN]")
+            print("✅ Тестовый пользователь создан: testuser / testpassword123")
 
         cursor.close()
         conn.close()
-        print("✅ База данных MySQL инициализирована")
+        print("✅ База данных PostgreSQL инициализирована")
         return True
 
-    except mysql.connector.Error as e:
+    except psycopg2.Error as e:
         print(f"❌ Ошибка инициализации БД: {e}")
         return False
 
-# Инициализируем базу данных при старте приложения
-print("🔄 Инициализация базы данных...")
-if init_database():
-    print("✅ База данных готова к работе")
-else:
-    print("❌ Ошибка инициализации базы данных")
 
-# Остальные функции остаются без изменений...
+# Остальные функции для PostgreSQL
 def user_exists(username):
-    """Защищенная проверка существования пользователя"""
+    """Проверка существования пользователя"""
     conn = get_db_connection()
     if conn is None:
         return False
 
     cursor = conn.cursor()
-    query = "SELECT * FROM user WHERE username = %s"
-
     try:
-        cursor.execute(query, (username,))
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-        cursor.close()
-        conn.close()
         return user is not None
     except Exception as e:
         print(f"Ошибка проверки пользователя: {e}")
+        return False
+    finally:
         cursor.close()
         conn.close()
-        return False
+
 
 def register_user(username, password):
-    """Защищенная регистрация пользователя"""
+    """Регистрация пользователя"""
     conn = get_db_connection()
     if conn is None:
         return False
 
     cursor = conn.cursor()
     password_hash = generate_password_hash(password)
-    query = "INSERT INTO user (username, password_hash) VALUES (%s, %s)"
 
     try:
-        cursor.execute(query, (username, password_hash))
+        cursor.execute(
+            "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+            (username, password_hash)
+        )
         conn.commit()
-        cursor.close()
-        conn.close()
         return True
-    except mysql.connector.IntegrityError:
+    except psycopg2.IntegrityError:
         flash('Пользователь с таким именем уже существует', 'error')
         return False
     except Exception as e:
         print(f"Ошибка регистрации: {e}")
+        return False
+    finally:
         cursor.close()
         conn.close()
-        return False
+
 
 def login_user(username, password):
-    """Защищенный вход пользователя"""
+    """Вход пользователя"""
     conn = get_db_connection()
     if conn is None:
         return None
 
     cursor = conn.cursor()
-    query = "SELECT * FROM user WHERE username = %s"
-
     try:
-        cursor.execute(query, (username,))
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-        cursor.close()
-        conn.close()
 
         if user and check_password_hash(user[2], password):
             return user
         return None
     except Exception as e:
         print(f"Ошибка входа: {e}")
+        return None
+    finally:
         cursor.close()
         conn.close()
-        return None
+
 
 def get_all_notes():
     """Получение всех заметок"""
@@ -193,16 +193,21 @@ def get_all_notes():
         return []
 
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT note.*, user.username 
-        FROM note 
-        JOIN user ON note.user_id = user.id 
-        ORDER BY note.created_at DESC
-    """)
-    notes = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return notes
+    try:
+        cursor.execute("""
+            SELECT notes.*, users.username 
+            FROM notes 
+            JOIN users ON notes.user_id = users.id 
+            ORDER BY notes.created_at DESC
+        """)
+        notes = cursor.fetchall()
+        return notes
+    except Exception as e:
+        print(f"Ошибка получения заметок: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def get_user_notes(user_id):
@@ -212,11 +217,16 @@ def get_user_notes(user_id):
         return []
 
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM note WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
-    notes = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return notes
+    try:
+        cursor.execute("SELECT * FROM notes WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+        notes = cursor.fetchall()
+        return notes
+    except Exception as e:
+        print(f"Ошибка получения заметок пользователя: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def add_note_to_db(title, content, user_id):
@@ -226,15 +236,20 @@ def add_note_to_db(title, content, user_id):
         return None
 
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO note (title, content, user_id) VALUES (%s, %s, %s)",
-        (title, content, user_id)
-    )
-    conn.commit()
-    note_id = cursor.lastrowid
-    cursor.close()
-    conn.close()
-    return note_id
+    try:
+        cursor.execute(
+            "INSERT INTO notes (title, content, user_id) VALUES (%s, %s, %s) RETURNING id",
+            (title, content, user_id)
+        )
+        note_id = cursor.fetchone()[0]
+        conn.commit()
+        return note_id
+    except Exception as e:
+        print(f"Ошибка добавления заметки: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def update_note_in_db(note_id, title, content, user_id):
@@ -244,15 +259,20 @@ def update_note_in_db(note_id, title, content, user_id):
         return False
 
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE note SET title = %s, content = %s WHERE id = %s AND user_id = %s",
-        (title, content, note_id, user_id)
-    )
-    conn.commit()
-    success = cursor.rowcount > 0
-    cursor.close()
-    conn.close()
-    return success
+    try:
+        cursor.execute(
+            "UPDATE notes SET title = %s, content = %s WHERE id = %s AND user_id = %s",
+            (title, content, note_id, user_id)
+        )
+        conn.commit()
+        success = cursor.rowcount > 0
+        return success
+    except Exception as e:
+        print(f"Ошибка обновления заметки: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def delete_note_from_db(note_id, user_id):
@@ -262,15 +282,20 @@ def delete_note_from_db(note_id, user_id):
         return False
 
     cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM note WHERE id = %s AND user_id = %s",
-        (note_id, user_id)
-    )
-    conn.commit()
-    success = cursor.rowcount > 0
-    cursor.close()
-    conn.close()
-    return success
+    try:
+        cursor.execute(
+            "DELETE FROM notes WHERE id = %s AND user_id = %s",
+            (note_id, user_id)
+        )
+        conn.commit()
+        success = cursor.rowcount > 0
+        return success
+    except Exception as e:
+        print(f"Ошибка удаления заметки: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def get_note_by_id(note_id, user_id):
@@ -280,17 +305,30 @@ def get_note_by_id(note_id, user_id):
         return None
 
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM note WHERE id = %s AND user_id = %s",
-        (note_id, user_id)
-    )
-    note = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return note
+    try:
+        cursor.execute(
+            "SELECT * FROM notes WHERE id = %s AND user_id = %s",
+            (note_id, user_id)
+        )
+        note = cursor.fetchone()
+        return note
+    except Exception as e:
+        print(f"Ошибка получения заметки: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
 
-# Остальные маршруты остаются без изменений
+# Инициализируем базу данных
+print("🔄 Инициализация базы данных PostgreSQL...")
+if init_database():
+    print("✅ База данных готова к работе")
+else:
+    print("❌ Ошибка инициализации базы данных")
+
+
+# Маршруты Flask (остаются без изменений)
 @app.before_request
 def before_request():
     if 'user_id' not in session:
@@ -467,15 +505,12 @@ def delete_note(note_id):
 
 
 if __name__ == '__main__':
-    # Инициализируем базу данных при запуске
-    init_database()
-
     print("=" * 60)
-    print("🛡️  ЗАПУСК ЗАЩИЩЕННОГО ПРИЛОЖЕНИЯ С MYSQL")
+    print("🛡️  ЗАПУСК ЗАЩИЩЕННОГО ПРИЛОЖЕНИЯ С POSTGRESQL")
     print("=" * 60)
-    print("📊 Тестовый пользователь: testuser / [HIDDEN]")
+    print("📊 Тестовый пользователь: testuser / testpassword123")
     print("🔒 Используются параметризованные запросы")
-    print("🗄️  База данных: MySQL")
+    print("🗄️  База данных: PostgreSQL")
     print("🚫 SQL-инъекции заблокированы")
     print("=" * 60)
     app.run(debug=False, host='127.0.0.1', port=5001)
