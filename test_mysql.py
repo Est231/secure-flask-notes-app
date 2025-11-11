@@ -1,3 +1,4 @@
+import os
 import mysql.connector
 
 
@@ -6,7 +7,7 @@ def test_connection():
         conn = mysql.connector.connect(
             host='localhost',
             user='notes_app_user',
-            password='StrongAppPassword123!',
+            password=os.getenv('DB_PASSWORD'),
             database='notes_app_db',
             port=3306
         )
