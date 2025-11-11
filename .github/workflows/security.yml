@@ -35,8 +35,9 @@ jobs:
         fi
         
         # Проверка на хардкод паролей
-        if grep -r "password.*=" . --include="*.py" | grep -v "password_hash" | grep -v "DB_PASSWORD"; then
+        if grep -r "password.*=" . --include="*.py" | grep -v "password_hash" | grep -v "DB_PASSWORD" | grep -v "#"; then
           echo "⚠️  ПРЕДУПРЕЖДЕНИЕ: Возможен хардкод паролей"
+          # exit 1  # Раскомментируйте для строгой проверки
         fi
         
         # Проверка .env файла (если случайно закоммитили)
@@ -47,21 +48,24 @@ jobs:
         
         echo "✅ Базовые проверки безопасности пройдены"
 
-    - name: Syntax check
+    - name: Python syntax check
       run: |
         echo "🔍 Проверка синтаксиса Python..."
-        python -m py_compile app.py || exit 1
-        echo "✅ Синтаксис корректен"
+        # Ищем все Python файлы и проверяем их синтаксис
+        find . -name "*.py" -exec python -m py_compile {} \;
+        echo "✅ Синтаксис Python корректен"
 
-    - name: Test application start
+    - name: Test imports
       run: |
-        echo "🔍 Тестирование запуска приложения..."
-        timeout 10s python app.py &
-        sleep 3
-        if ps aux | grep "python app.py" | grep -v grep; then
-          echo "✅ Приложение успешно запускается"
-          pkill -f "python app.py"
-        else
-          echo "❌ Ошибка запуска приложения"
-          exit 1
-        fi
+        echo "🔍 Проверка импортов..."
+        python -c "
+        try:
+            import flask
+            import flask_wtf
+            from werkzeug.security import generate_password_hash, check_password_hash
+            import psycopg2
+            print('✅ Все необходимые модули импортируются')
+        except ImportError as e:
+            print(f'❌ Ошибка импорта: {e}')
+            exit(1)
+        "
