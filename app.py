@@ -25,8 +25,7 @@ csrf = CSRFProtect(app)
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'notes_app_user',
-    test_password = os.getenv('TEST_USER_PASSWORD', 'testpassword123')
-    password_hash = generate_password_hash(test_password)
+    'password': os.getenv('DB_PASSWORD', 'default_dev_password'),
     'database': 'notes_app_db',
     'port': 3306
 }
