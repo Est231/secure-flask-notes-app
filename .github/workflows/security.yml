@@ -32,8 +32,7 @@ jobs:
       id: bandit_check
       run: |
         if [ -f bandit-report.json ]; then
-          python -c "
-import json
+          python -c "import json
 try:
     with open('bandit-report.json', 'r') as f:
         data = json.load(f)
@@ -47,8 +46,7 @@ try:
         exit(0)
 except Exception as e:
     print(f'Error reading bandit report: {e}')
-    exit(0)
-"
+    exit(0)"
         else
           echo 'No bandit report generated'
           exit(0)
@@ -59,28 +57,22 @@ except Exception as e:
       run: |
         echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
         if [ -f bandit-report.json ]; then
-          python -c "
-import json
+          python -c "import json
 try:
     with open('bandit-report.json', 'r') as f:
         data = json.load(f)
-    
     high = len([i for i in data['results'] if i['issue_severity'] == 'HIGH'])
     medium = len([i for i in data['results'] if i['issue_severity'] == 'MEDIUM'])
     low = len([i for i in data['results'] if i['issue_severity'] == 'LOW'])
-    
     print(f'- 🔴 High: {high}')
     print(f'- 🟡 Medium: {medium}') 
     print(f'- 🟢 Low: {low}')
-    
     if high > 0:
-        print('\\n**❌ CRITICAL ISSUES FOUND - MERGE BLOCKED**')
+        print('**❌ CRITICAL ISSUES FOUND - MERGE BLOCKED**')
     else:
-        print('\\n**✅ No critical issues found**')
-        
+        print('**✅ No critical issues found**')
 except Exception as e:
-    print(f'Error generating report: {e}')
-"
+    print(f'Error generating report: {e}')"
         else
           echo 'No security report available'
         fi
