@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <title>Редактирование заметки</title>
+</head>
+<body>
+    <div class="header">
+        <h1>📝 Редактирование заметки</h1>
+        <p>Измените содержимое вашей заметки</p>
+    </div>
+
+    <div class="note-form">
+        <h2>✏️ Изменить заметку</h2>
+        <form action="{{ url_for('edit_note', note_id=note.id) }}" method="POST" id="editNoteForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <input type="text" name="title" value="{{ note.title }}" class="form-input" required maxlength="100" id="editTitle">
+            <textarea name="content" class="form-textarea" required rows="4" id="editContent">{{ note.content }}</textarea>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+                <a href="{{ url_for('index') }}" class="btn btn-cancel">❌ Отмена</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Подключаем тот же JavaScript файл -->
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+</body>
+</html>

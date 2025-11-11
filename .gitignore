@@ -1,0 +1,12 @@
+.env 
+.idea/ 
+__pycache__/ 
+venv/ 
+.venv/ 
+*.pyc 
+*.pyo 
+*.pyd 
+.vscode/ 
+*.sqlite3 
+postgresql_portable/ 
+instance/ 

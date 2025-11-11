@@ -1,0 +1,20 @@
+exclude_dirs: ['tests', 'venv', '.github', 'static', 'templates', '__pycache__']
+
+skips:
+  - B101
+  - B104
+  - B105
+  - B106
+  - B107
+
+tests:
+  - B201
+  - B301
+  - B302
+  - B303
+  - B501
+  - B502
+  - B601
+  - B602
+  - B603
+  - B607

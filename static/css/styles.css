@@ -1,0 +1,304 @@
+/* static/css/styles.css */
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+.header {
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.note-form {
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.form-input, .form-textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin: 2px;
+}
+
+.btn-primary {
+    background: #3498db;
+    color: white;
+}
+
+.btn-edit {
+    background: #f39c12;
+    color: white;
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
+.btn-delete {
+    background: #e74c3c;
+    color: white;
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
+.btn-cancel {
+    background: #95a5a6;
+    color: white;
+}
+
+.note-card {
+    background: white;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 3px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.note-card.own-note {
+    border-left: 4px solid #27ae60;
+}
+
+.note-card.other-note {
+    border-left: 4px solid #e74c3c;
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.note-date {
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+.note-actions {
+    margin-top: 10px;
+    text-align: right;
+}
+
+.delete-confirm {
+    display: inline-block;
+    background: #e74c3c;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    text-decoration: none;
+}
+
+.form-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Стили для модального окна */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: center;
+    min-width: 300px;
+}
+
+.own-note-badge {
+    color: #27ae60;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.other-note-badge {
+    color: #e74c3c;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.view-only-badge {
+    color: #95a5a6;
+    font-size: 14px;
+    padding: 5px 10px;
+}
+
+.header-info {
+    font-size: 14px;
+    color: #ecf0f1;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+/* Стили для уязвимых форм */
+.warning {
+    color: #e74c3c;
+    font-weight: bold;
+    background: #fff5f5;
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #e74c3c;
+}
+
+.btn-vulnerable {
+    background: #e74c3c !important;
+    color: white;
+    font-weight: bold;
+}
+
+.btn-vulnerable:hover {
+    background: #c0392b !important;
+}
+
+.sql-injection-demo {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 5px;
+    margin: 20px 0;
+    border: 2px solid #e74c3c;
+}
+
+.payload-examples {
+    margin: 15px 0;
+}
+
+.payload {
+    margin: 10px 0;
+    padding: 10px;
+    background: white;
+    border-radius: 3px;
+    border-left: 3px solid #3498db;
+}
+
+.payload code {
+    background: #2c3e50;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+    display: inline-block;
+    margin: 5px 0;
+    font-family: 'Courier New', monospace;
+}
+
+.code-block {
+    background: #2c3e50;
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+    overflow-x: auto;
+}
+
+.code-block pre {
+    margin: 0;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.code-block code {
+    color: #ecf0f1;
+}
+
+.injection-example, .protection-method {
+    background: white;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+    border-left: 4px solid #3498db;
+}
+
+.injection-example {
+    border-left-color: #e74c3c;
+}
+
+.protection-method {
+    border-left-color: #27ae60;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.btn-info {
+    background: #3498db;
+    color: white;
+}
+
+.alert-warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+/* Добавляем в конец файла */
+
+.login-method {
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    border: 2px solid #ddd;
+}
+
+.login-method.vulnerable {
+    border-color: #e74c3c;
+    background: #fff5f5;
+}
+
+.btn-vulnerable {
+    background: #e74c3c !important;
+    color: white;
+}
+
+.btn-vulnerable:hover {
+    background: #c0392b !important;
+}
+
+.alert-warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+    padding: 10px 15px;
+    border-radius: 3px;
+    margin-bottom: 15px;
+}
