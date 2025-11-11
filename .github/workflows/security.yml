@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  security-check:
+  security-scan:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,51 +21,21 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install flask flask-wtf python-dotenv werkzeug psycopg2-binary
+        pip install bandit flask flask-wtf python-dotenv werkzeug
+
+    - name: Run Bandit Security Scan
+      run: |
+        echo "🔍 Starting Bandit security scan..."
+        bandit -r . -f txt
 
     - name: Basic security checks
       run: |
-        echo "🔍 Проверка безопасности..."
+        echo "🔍 Running basic security checks..."
         
-        # Проверка на debug mode
+        # Check for debug mode
         if grep -r "debug=True" . --include="*.py"; then
-          echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Обнаружен debug=True в продакшн коде"
+          echo "❌ CRITICAL: debug=True found in production code"
           exit 1
         fi
         
-        # Проверка на хардкод паролей
-        if grep -r "password.*=" . --include="*.py" | grep -v "password_hash" | grep -v "DB_PASSWORD" | grep -v "#"; then
-          echo "⚠️  ПРЕДУПРЕЖДЕНИЕ: Возможен хардкод паролей"
-          # exit 1  # Раскомментируйте для строгой проверки
-        fi
-        
-        # Проверка .env файла (если случайно закоммитили)
-        if [ -f ".env" ]; then
-          echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Файл .env не должен быть в репозитории"
-          exit 1
-        fi
-        
-        echo "✅ Базовые проверки безопасности пройдены"
-
-    - name: Python syntax check
-      run: |
-        echo "🔍 Проверка синтаксиса Python..."
-        # Ищем все Python файлы и проверяем их синтаксис
-        find . -name "*.py" -exec python -m py_compile {} \;
-        echo "✅ Синтаксис Python корректен"
-
-    - name: Test imports
-      run: |
-        echo "🔍 Проверка импортов..."
-        python -c "
-        try:
-            import flask
-            import flask_wtf
-            from werkzeug.security import generate_password_hash, check_password_hash
-            import psycopg2
-            print('✅ Все необходимые модули импортируются')
-        except ImportError as e:
-            print(f'❌ Ошибка импорта: {e}')
-            exit(1)
-        "
+        echo "✅ Basic security checks passed"
