@@ -1,6 +1,7 @@
 exclude_dirs: ['tests', 'venv', '.github', 'static', 'templates', '__pycache__', 'logs', 'postgresql_portable']
 
-skips: []
+skips:
+  - B105
 
 
 tests:

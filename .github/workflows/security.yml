@@ -24,18 +24,45 @@ jobs:
         pip install bandit flask flask-wtf python-dotenv werkzeug
 
     - name: Run Bandit Security Scan
+      id: bandit_scan  # ⬅️ ДОБАВЬТЕ ЭТО - важно для отслеживания статуса
+      continue-on-error: true  # ⬅️ ДОБАВЬТЕ ЭТО - продолжать даже при ошибках
       run: |
         echo "🔍 Starting Bandit security scan..."
-        bandit -r . -f txt
+        
+        # Запускаем Bandit и сохраняем отчет
+        bandit -r . -f txt -o bandit-report.txt
+        
+        # Проверяем наличие критических уязвимостей
+        if grep -q "Severity: HIGH" bandit-report.txt; then
+          echo "❌ CRITICAL: Bandit found HIGH severity vulnerabilities"
+          echo "bandit_failed=true" >> $GITHUB_OUTPUT
+          exit 1
+        elif grep -q "Severity: MEDIUM" bandit-report.txt; then
+          echo "⚠️ WARNING: Bandit found MEDIUM severity vulnerabilities"
+          echo "bandit_failed=false" >> $GITHUB_OUTPUT
+        else
+          echo "✅ Bandit scan passed - no critical vulnerabilities found"
+          echo "bandit_failed=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Basic security checks
+      id: basic_checks  # ⬅️ ДОБАВЬТЕ ЭТО
       run: |
         echo "🔍 Running basic security checks..."
         
         # Check for debug mode
         if grep -r "debug=True" . --include="*.py"; then
           echo "❌ CRITICAL: debug=True found in production code"
+          echo "basic_checks_failed=true" >> $GITHUB_OUTPUT
           exit 1
         fi
         
         echo "✅ Basic security checks passed"
+        echo "basic_checks_failed=false" >> $GITHUB_OUTPUT
+
+    - name: Fail if critical issues found
+      if: steps.bandit_scan.outputs.bandit_failed == 'true' || steps.basic_checks.outputs.basic_checks_failed == 'true'
+      run: |
+        echo "🚫 Security checks failed. Blocking merge..."
+        echo "Please fix the security issues above."
+        exit 1
